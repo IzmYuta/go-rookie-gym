@@ -15,12 +15,13 @@ func main() {
 	http.HandleFunc("/json", handler)
 
 	// ここの下に追加
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
 type Payload struct {
 	// jsonタグを追加してみよう
 	// key名はname
-	MyName string
+	MyName string `json:"name"`
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
