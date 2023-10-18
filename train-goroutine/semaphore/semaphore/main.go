@@ -26,7 +26,7 @@ func longProcess(ctx context.Context) {
 }
 
 func main() {
-	ctx := context.TODO()
+	ctx := context.TODO() // context.TODOとは?
 	go longProcess(ctx)
 	go longProcess(ctx)
 	go longProcess(ctx)
