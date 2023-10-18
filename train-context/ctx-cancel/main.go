@@ -11,7 +11,7 @@ func main() {
 	defer cancel()
 	go watch(ctx)
 	log.Println("execute ...")
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 2)
 	cancel()
 }
 
