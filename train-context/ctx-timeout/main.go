@@ -13,7 +13,7 @@ func main() {
 	// defer cancel()
 	go watch(ctx)
 	log.Println("execute ...")
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 1)
 	// cancel()
 }
 
