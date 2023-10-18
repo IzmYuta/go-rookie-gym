@@ -24,3 +24,10 @@ func main() {
 	// close(ch)
 	log.Println("end")
 }
+
+// Deadlock
+// package main
+// func main() {
+// 	ch := make(chan struct{}) 
+// 	<-ch
+// }
