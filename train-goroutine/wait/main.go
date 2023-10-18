@@ -11,15 +11,13 @@ func main() {
 
 	for i := 0; i < 5; i++ {
 		i := i
-		// カウントを増やす
 		wg.Add(1)
-		go func(wg sync.WaitGroup) {
-			// カウントを減らす
+		// ポインタを渡す
+		go func(wg *sync.WaitGroup) {
 			defer wg.Done()
 			log.Println(i)
-		}(wg)
+		}(&wg)// ポインタを渡す
 	}
-	// カウントが0でない限りブロックする
 	wg.Wait()
 	log.Println("end")
 }
