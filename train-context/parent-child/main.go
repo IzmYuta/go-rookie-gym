@@ -23,7 +23,7 @@ func main() {
 
 	log.Println("-----")
 	ctx4 := context.WithValue(ctx, "key4", 4)
-	log.Println(ctx4.Value("key2"))
+	log.Println(ctx4.Value("key3"))
 
 	// ctxtimeout, _ := context.WithTimeout(context.Background(), time.Second*3)
 	// // timeoutが短い方が優先される
