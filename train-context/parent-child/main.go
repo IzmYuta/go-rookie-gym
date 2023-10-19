@@ -9,21 +9,22 @@ import (
 func main() {
 	ctx := context.WithValue(context.Background(), "key", 1)
 	log.Println("-----")
-	log.Println(ctx.Value("key"))
-	log.Println(ctx.Value("key2"))
+	log.Println(ctx.Value("key")) // 1
+	log.Println(ctx.Value("key2")) // nil
 
 	log.Println("-----")
 	ctx2 := context.WithValue(ctx, "key2", 2)
-	log.Println(ctx2.Value("key"))
-	log.Println(ctx2.Value("key2"))
+	log.Println(ctx2.Value("key")) // 1
+	log.Println(ctx2.Value("key2")) // 2
 
 	log.Println("-----")
 	ctx3 := context.WithValue(ctx2, "key3", 3)
-	log.Println(ctx3.Value("key2"))
+	log.Println(ctx3.Value("key")) // 1
+	log.Println(ctx3.Value("key2")) // 2
 
 	log.Println("-----")
 	ctx4 := context.WithValue(ctx, "key4", 4)
-	log.Println(ctx4.Value("key3"))
+	log.Println(ctx4.Value("key3")) // nil
 
 	// ctxtimeout, _ := context.WithTimeout(context.Background(), time.Second*3)
 	// // timeoutが短い方が優先される
