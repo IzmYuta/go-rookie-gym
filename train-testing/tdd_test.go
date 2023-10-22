@@ -23,6 +23,15 @@ func TestAddStruct(t *testing.T) {
 			wantErr: false,
 		},
 		// invalidケースを書いてみよう！
+		{
+			name: "invalid",
+			args: args{
+				i: -1,
+				j: -1,
+			},
+			want:    0,
+			wantErr: true,
+		},
 	}
 
 	for i, tt := range tests {
