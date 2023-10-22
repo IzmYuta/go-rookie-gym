@@ -6,7 +6,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"testing/mock"
+	"test/mock"
 )
 
 func TestDB(t *testing.T) {
