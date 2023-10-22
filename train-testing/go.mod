@@ -1,4 +1,4 @@
-module testing
+module test
 
 go 1.19
 
