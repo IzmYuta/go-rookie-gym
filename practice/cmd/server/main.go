@@ -10,35 +10,46 @@ import (
 
 
 func main() {
-	// HandleFuncでエンドポイントと処理を紐付ける
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Hello, World!")
 	})
-	http.HandleFunc("/hello", HelloServer)
+	http.HandleFunc("/user",userHandler)
 
-	// ListenAndServeでポート開通
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-type Payload struct {
+type UserInput struct {
 	Name string `json:"name"`
 }
 
-func HelloServer(w http.ResponseWriter, req *http.Request) {
-	var p Payload
-	// io.ReadAllでリクエストボディを読み込む
-	body, _ := io.ReadAll(req.Body)
-	// json.UnmarshalでJSONを構造体に変換
-	// 変換された構造体はpに格納される
-	if err := json.Unmarshal(body, &p); err != nil {
+type UserOutput struct {
+	ID int `json:"id"`
+	Name string `json:"name"`
+}
+
+func userHandler(w http.ResponseWriter, r *http.Request){
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var input UserInput
+	var output UserOutput
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	name := p.Name
-	p.Name = fmt.Sprintf("Hello, %s", name)
-	// json.Marshalで構造体をJSONに変換
-	j,_ := json.Marshal(&p)
-	// JSONをレスポンスとして返す
+	if err := json.Unmarshal(body, &input); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	output.ID = 1
+	output.Name = input.Name
+	j, err := json.Marshal(&output)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 	w.Write(j)
-
 }
