@@ -71,24 +71,25 @@ func userHandler(db *sql.DB) http.HandlerFunc {
 			log.Printf("failed to exec query err = %s", err.Error())
 			return
 		}
-		lastid, err := id.LastInsertId()
+		last_user_id, err := id.LastInsertId()
 		if err != nil {
 			log.Printf("failed to get a last insert id err = %s", err.Error())
 			return
 		}
-		output.ID = int(lastid)
 		// groupの作成　groupsはMYSQLの予約語なのでバッククオートで囲む必要がある
-		group_id, err := db.ExecContext(context.Background(), "INSERT INTO `groups` (user_id, name) VALUES (?, ?);", output.ID, input.Name)
+		group_id, err := db.ExecContext(context.Background(), "INSERT INTO `groups` (user_id, name) VALUES (?, ?);", last_user_id, input.Name)
 		if err != nil {
 			log.Printf("failed to exec query err = %s", err.Error())
 			return
 		}
-		group_lastid, err := group_id.LastInsertId()
+		last_group_id, err := group_id.LastInsertId()
 		if err != nil {
 			log.Printf("failed to get a last insert id err = %s", err.Error())
 			return
 		}
-		output.GroupID = int(group_lastid)
+		// JSONレスポンスの作成
+		output.ID = int(last_user_id)
+		output.GroupID = int(last_group_id)
 		j, err := json.Marshal(&output)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
