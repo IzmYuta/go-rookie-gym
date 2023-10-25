@@ -1,19 +1,19 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"io"
 	"context"
-	"encoding/json"
-	"net/http"
 	"database/sql"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
 
 	_ "github.com/go-sql-driver/mysql"
 )
 
-type User struct{
-	ID int
+type User struct {
+	ID   int
 	Name string
 }
 
@@ -23,35 +23,16 @@ func main() {
 		log.Printf("failed to open a db err = %s", err.Error())
 		return
 	}
-
+	defer db.Close()
 	if err := db.PingContext(context.Background()); err != nil {
 		log.Printf("failed to ping err = %s", err.Error())
 		return
 	}
-	id, err := db.ExecContext(context.Background(), "INSERT INTO users (name) VALUES (?);", "sample User")
-	if err != nil {
-		log.Printf("failed to exec query err = %s", err.Error())
-		return
-	}
-
-	lastid, err := id.LastInsertId()
-	if err != nil {
-		log.Printf("failed to get a last insert id err = %s", err.Error())
-		return
-	}
-	var s User
-
-	if err := db.QueryRowContext(context.Background(), "SELECT id, name FROM users WHERE id = ?", lastid).Scan(&s.ID, &s.Name); err != nil {
-		log.Printf("failed to scan err = %s", err.Error())
-		return
-	}
-
-	log.Printf("User is %#v", s)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Hello, World!")
 	})
-	http.HandleFunc("/user",userHandler)
+	http.HandleFunc("/user", userHandler(db))
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
@@ -61,33 +42,59 @@ type UserInput struct {
 }
 
 type UserOutput struct {
-	ID int `json:"id"`
-	Name string `json:"name"`
+	ID      int `json:"id"`
+	GroupID int `json:"group_id"`
 }
 
-func userHandler(w http.ResponseWriter, r *http.Request){
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
+func userHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// POSTのみ許可
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		// JSONリクエストボディから構造体を作成する
+		var input UserInput
+		var output UserOutput
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if err := json.Unmarshal(body, &input); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		// Userの作成
+		id, err := db.ExecContext(context.Background(), "INSERT INTO users (name) VALUES (?);", input.Name)
+		if err != nil {
+			log.Printf("failed to exec query err = %s", err.Error())
+			return
+		}
+		lastid, err := id.LastInsertId()
+		if err != nil {
+			log.Printf("failed to get a last insert id err = %s", err.Error())
+			return
+		}
+		output.ID = int(lastid)
+		// groupの作成　groupsはMYSQLの予約語なのでバッククオートで囲む必要がある
+		group_id, err := db.ExecContext(context.Background(), "INSERT INTO `groups` (user_id, name) VALUES (?, ?);", output.ID, input.Name)
+		if err != nil {
+			log.Printf("failed to exec query err = %s", err.Error())
+			return
+		}
+		group_lastid, err := group_id.LastInsertId()
+		if err != nil {
+			log.Printf("failed to get a last insert id err = %s", err.Error())
+			return
+		}
+		output.GroupID = int(group_lastid)
+		j, err := json.Marshal(&output)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(j)
 	}
-	var input UserInput
-	var output UserOutput
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	if err := json.Unmarshal(body, &input); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	output.ID = 1
-	output.Name = input.Name
-	j, err := json.Marshal(&output)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	w.Write(j)
 }
