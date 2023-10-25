@@ -33,6 +33,7 @@ func main() {
 		fmt.Fprintf(w, "Hello, World!")
 	})
 	http.HandleFunc("/user", userHandler(db))
+	http.HandleFunc("/groups", groupsHandler)
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
@@ -98,4 +99,15 @@ func userHandler(db *sql.DB) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		w.Write(j)
 	}
+}
+
+func groupsHandler(w http.ResponseWriter, r *http.Request) {
+	// GETのみ許可
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	// クエリパラメータの取得
+	user_id:= r.URL.Query().Get("user_id")
+	fmt.Println(user_id)
 }
