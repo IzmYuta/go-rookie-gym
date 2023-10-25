@@ -33,7 +33,7 @@ func main() {
 		fmt.Fprintf(w, "Hello, World!")
 	})
 	http.HandleFunc("/user", userHandler(db))
-	http.HandleFunc("/groups", groupsHandler)
+	http.HandleFunc("/groups", groupsHandler(db))
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
@@ -101,13 +101,33 @@ func userHandler(db *sql.DB) http.HandlerFunc {
 	}
 }
 
-func groupsHandler(w http.ResponseWriter, r *http.Request) {
-	// GETのみ許可
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
+
+type GroupOutput struct{
+	ID int `json:"id"`
+	Name string `json:"name"`
+}
+
+func groupsHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// GETのみ許可
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		var output GroupOutput
+		// クエリパラメータの取得
+		user_id := r.URL.Query().Get("user_id")
+		// DBから取得
+		if err := db.QueryRowContext(context.Background(), "SELECT id, name FROM `groups` WHERE user_id = ?", user_id).Scan(&output.ID, &output.Name); err != nil {
+			log.Printf("failed to scan err = %s", err.Error())
+			return
+		}
+		j, err := json.Marshal(&output)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(j)
 	}
-	// クエリパラメータの取得
-	user_id:= r.URL.Query().Get("user_id")
-	fmt.Println(user_id)
 }
