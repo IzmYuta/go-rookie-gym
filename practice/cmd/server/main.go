@@ -101,9 +101,8 @@ func userHandler(db *sql.DB) http.HandlerFunc {
 	}
 }
 
-
-type GroupOutput struct{
-	ID int `json:"id"`
+type GroupOutput struct {
+	ID   int    `json:"id"`
 	Name string `json:"name"`
 }
 
@@ -114,15 +113,34 @@ func groupsHandler(db *sql.DB) http.HandlerFunc {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		var output GroupOutput
+		// こう定義しないと中身が空の時のレスポンスがnullになる
+		groups := make([]GroupOutput, 0)
 		// クエリパラメータの取得
 		user_id := r.URL.Query().Get("user_id")
 		// DBから取得
-		if err := db.QueryRowContext(context.Background(), "SELECT id, name FROM `groups` WHERE user_id = ?", user_id).Scan(&output.ID, &output.Name); err != nil {
-			log.Printf("failed to scan err = %s", err.Error())
+		rows, err := db.QueryContext(context.Background(), "SELECT id, name FROM `groups` WHERE user_id = ?", user_id)
+		// 取得できなかったときは空配列を返す
+		if err != nil {
+			j, err := json.Marshal(&groups)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			w.Write(j)
 			return
 		}
-		j, err := json.Marshal(&output)
+		defer rows.Close()
+		// rows.Next()はbooleanを返す。次の要素があるときはTrueになる。
+		// つまり、rowsの要素が全て取り出されるまで無限ループする
+		for rows.Next() {
+			var group GroupOutput
+			if err := rows.Scan(&group.ID, &group.Name); err != nil {
+				return
+			}
+			groups = append(groups, group)
+		}
+		j, err := json.Marshal(&groups)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
