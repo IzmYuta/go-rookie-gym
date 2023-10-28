@@ -118,9 +118,13 @@ func groupsHandler(db *sql.DB) http.HandlerFunc {
 		groups := make([]GroupsOutput, 0)
 		// クエリパラメータの取得
 		user_id := r.URL.Query().Get("user_id")
+		if user_id == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		// DBから取得
-		rows, err := db.QueryContext(context.Background(), "SELECT id, name FROM `groups` WHERE user_id = ?", user_id)
 		// 取得できなかったときは空配列を返す
+		rows, err := db.QueryContext(context.Background(), "SELECT id, name FROM `groups` WHERE user_id = ?", user_id)
 		if err != nil {
 			j, err := json.Marshal(&groups)
 			if err != nil {
