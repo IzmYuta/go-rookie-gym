@@ -1,12 +1,15 @@
 package handler
 
-import(
-	"net/http"
-	"context"
+import (
+	"database/sql"
+	"encoding/json"
 	"io"
 	"log"
-	"encoding/json"
-	"database/sql"
+	"net/http"
+	"strconv"
+
+	groupuc "practice/usecase/group"
+	useruc "practice/usecase/user"
 )
 
 type UserRequest struct {
@@ -14,8 +17,8 @@ type UserRequest struct {
 }
 
 type UserResponse struct {
-	ID      int `json:"id"`
-	GroupID int `json:"group_id"`
+	ID      int64 `json:"id"`
+	GroupID int64 `json:"group_id"`
 }
 
 func UserHandler(db *sql.DB) http.HandlerFunc {
@@ -26,43 +29,30 @@ func UserHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 		// JSONリクエストボディから構造体を作成する
-		var input UserRequest
-		var output UserResponse
+		var req UserRequest
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		if err := json.Unmarshal(body, &input); err != nil {
+		if err := json.Unmarshal(body, &req); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		// Userの作成
-		id, err := db.ExecContext(context.Background(), "INSERT INTO users (name) VALUES (?);", input.Name)
+		// usecaseから取得
+		output, err := useruc.User(db, &useruc.UserInput{
+			Name: req.Name,
+		})
 		if err != nil {
-			log.Printf("failed to exec query err = %s", err.Error())
-			return
-		}
-		last_user_id, err := id.LastInsertId()
-		if err != nil {
-			log.Printf("failed to get a last insert id err = %s", err.Error())
-			return
-		}
-		// groupの作成　groupsはMYSQLの予約語なのでバッククオートで囲む必要がある
-		group_id, err := db.ExecContext(context.Background(), "INSERT INTO `groups` (user_id, name) VALUES (?, ?);", last_user_id, input.Name)
-		if err != nil {
-			log.Printf("failed to exec query err = %s", err.Error())
-			return
-		}
-		last_group_id, err := group_id.LastInsertId()
-		if err != nil {
-			log.Printf("failed to get a last insert id err = %s", err.Error())
+			log.Printf("failed to put user err = %s", err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		// JSONレスポンスの作成
-		output.ID = int(last_user_id)
-		output.GroupID = int(last_group_id)
-		j, err := json.Marshal(&output)
+		var res UserResponse
+		res.ID = output.UserID
+		res.GroupID = output.GroupID
+		j, err := json.Marshal(&res)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -72,7 +62,7 @@ func UserHandler(db *sql.DB) http.HandlerFunc {
 	}
 }
 
-type GroupsResponse struct {
+type Group struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
 }
@@ -84,38 +74,28 @@ func GroupsHandler(db *sql.DB) http.HandlerFunc {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		// こう定義しないと中身が空の時のレスポンスがnullになる
-		groups := make([]GroupsResponse, 0)
-		// クエリパラメータの取得
-		user_id := r.URL.Query().Get("user_id")
-		if user_id == "" {
+		// クエリパラメータをint型に変換する
+		// パラメータが空、型が違うときは BadRequestを返す
+		user_id, err := strconv.Atoi(r.URL.Query().Get("user_id"))
+		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		// DBから取得
-		// 取得できなかったときは空配列を返す
-		rows, err := db.QueryContext(context.Background(), "SELECT id, name FROM `groups` WHERE user_id = ?", user_id)
+		// usecaseから取得
+		output, err := groupuc.Groups(db, user_id)
 		if err != nil {
-			j, err := json.Marshal(&groups)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			w.WriteHeader(http.StatusOK)
-			w.Write(j)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		defer rows.Close()
-		// rows.Next()はbooleanを返す。次の要素があるときはTrueになる。
-		// つまり、rowsの要素が全て取り出されるまで無限ループする
-		for rows.Next() {
-			var group GroupsResponse
-			if err := rows.Scan(&group.ID, &group.Name); err != nil {
-				return
+		// JSONレスポンスの作成
+		res := make([]Group, len(output))
+		for i, g := range output {
+			res[i] = Group{
+				ID:   g.ID,
+				Name: g.Name,
 			}
-			groups = append(groups, group)
 		}
-		j, err := json.Marshal(&groups)
+		j, err := json.Marshal(&res)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -130,8 +110,9 @@ type GroupRequest struct {
 	Name   string `json:"name"`
 }
 
+// DBから取得した値はint64型
 type GroupResponse struct {
-	ID int `json:"id"`
+	ID int64 `json:"id"`
 }
 
 func GroupHandler(db *sql.DB) http.HandlerFunc {
@@ -142,31 +123,29 @@ func GroupHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 		// JSONから構造体を作成
-		var input GroupRequest
-		var output GroupResponse
+		var req GroupRequest
+		var res GroupResponse
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		if err := json.Unmarshal(body, &input); err != nil {
+		if err := json.Unmarshal(body, &req); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		// Groupの作成
-		id, err := db.ExecContext(context.Background(), "INSERT INTO `groups` (user_id, name) VALUES (?,?);", input.UserID, input.Name)
+		group_id, err := groupuc.Group(db, &groupuc.GroupInput{
+			UserID:    req.UserID,
+			GroupName: req.Name,
+		})
 		if err != nil {
-			log.Printf("failed to exec query err = %s", err.Error())
-			return
-		}
-		last_id, err := id.LastInsertId()
-		if err != nil {
-			log.Printf("failed to get a last insert id err = %s", err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		// JSONレスポンスに変換
-		output.ID = int(last_id)
-		j, err := json.Marshal(&output)
+		res.ID = group_id
+		j, err := json.Marshal(&res)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
